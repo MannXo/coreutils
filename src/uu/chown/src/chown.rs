@@ -46,13 +46,11 @@ fn parse_gid_uid_and_filter(matches: &ArgMatches) -> UResult<GidUidOwnerFilter> 
             entries::gid2grp(gid).unwrap_or_else(|_| gid.to_string())
         );
     } else {
-        raw_owner = matches
-            .get_one::<String>(options::ARG_OWNER)
-            .unwrap()
-            .into();
-        let (u, g) = parse_spec(&raw_owner, ':')?;
+        let spec = matches.get_one::<String>(options::ARG_OWNER).unwrap();
+        let (u, g) = parse_spec(spec, ':')?;
         dest_uid = u;
         dest_gid = g;
+        raw_owner = describe_spec(spec, u, g);
     }
     Ok(GidUidOwnerFilter {
         dest_gid,
@@ -184,6 +182,26 @@ fn parse_gid(group: &str, spec: &str) -> UResult<Option<u32>> {
                 translate!("chown-error-invalid-group", "group" => spec.quote()),
             )),
         },
+    }
+}
+
+/// The owner spec as `chown -v` reports it: a `+ID` part is shown as the
+/// parsed ID, and a group-only spec as just the group.
+fn describe_spec(spec: &str, uid: Option<u32>, gid: Option<u32>) -> String {
+    let show = |part: &str, id: Option<u32>| match id {
+        Some(id) if part.starts_with('+') => id.to_string(),
+        _ => part.to_string(),
+    };
+    let sep = if spec.contains(':') { ':' } else { '.' };
+    match spec.split_once(sep) {
+        Some((user, group)) if spec.contains(':') || gid.is_some() => {
+            if user.is_empty() && !group.is_empty() {
+                show(group, gid)
+            } else {
+                format!("{}{sep}{}", show(user, uid), show(group, gid))
+            }
+        }
+        _ => show(spec, uid),
     }
 }
 

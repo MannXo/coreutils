@@ -281,8 +281,13 @@ impl ChownExecutor {
         let path = root.as_ref();
         let Some(meta) = self.obtain_meta(path, self.dereference) else {
             if self.verbosity.level == VerbosityLevel::Verbose {
+                let what = if self.dest_uid.is_none() && self.dest_gid.is_some() {
+                    "group"
+                } else {
+                    "ownership"
+                };
                 self.write_verbose_line(&format!(
-                    "failed to change ownership of {} to {}",
+                    "failed to change {what} of {} to {}",
                     path.quote(),
                     self.raw_owner
                 ));
