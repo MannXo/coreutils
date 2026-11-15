@@ -1650,6 +1650,7 @@ fn get_line_for_printing(
     indexes: usize,
 ) -> Vec<u8> {
     let formatted_line_number = get_formatted_line_number(options, file_line.line_number, index);
+    let number_len = formatted_line_number.len();
 
     // The content is kept as raw bytes, so input that is not valid UTF-8 is
     // written out unchanged.
@@ -1674,7 +1675,7 @@ fn get_line_for_printing(
         if display_length < min_width && !is_last_cell {
             complete_line.resize(complete_line.len() + (min_width - display_length), b' ');
         }
-        complete_line.truncate(char_prefix_len(&complete_line, min_width));
+        complete_line.truncate(char_prefix_len(&complete_line, min_width).max(number_len));
     }
 
     if !is_last_cell {
@@ -1685,13 +1686,14 @@ fn get_line_for_printing(
 
 /// Returns the length in bytes of the first `n` characters of `bytes`. A byte
 /// that is not part of a valid UTF-8 sequence takes no width, so it is kept
-/// unless a character before it is already cut off.
+/// unless a character before it is already cut off. A tab whose expansion is
+/// wider than `n` can never fit, so it ends the prefix.
 fn char_prefix_len(bytes: &[u8], n: usize) -> usize {
     let mut len = 0;
     let mut count = 0;
     for chunk in bytes.utf8_chunks() {
         for c in chunk.valid().chars() {
-            if count == n {
+            if count == n || (c == TAB && 8 - count % 8 > n) {
                 return len;
             }
             len += c.len_utf8();
