@@ -136,6 +136,19 @@ fn test_preserve_status() {
     }
 }
 
+/// When the first signal already ends the command, `-k` has nothing to kill.
+#[test]
+#[cfg(unix)]
+fn test_kill_after_not_sent_when_signal_ends_command() {
+    let (ts, bin) = scenario_with_bin();
+    ts.ucmd()
+        .args(&["-v", "-k", "10", "-s", "INT", ".1", &bin, "sleep", "10"])
+        .fails_with_code(124)
+        .no_stdout()
+        .stderr_contains("timeout: sending signal INT to command")
+        .stderr_does_not_contain("KILL");
+}
+
 #[test]
 fn test_kill_after_preserves_timeout_exit_without_preserve_status() {
     let (ts, bin) = scenario_with_bin();

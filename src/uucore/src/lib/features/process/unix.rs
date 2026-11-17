@@ -60,6 +60,9 @@ impl ChildExt for Child {
         let old_handler = unsafe { nix_signal::signal(signal, SigHandler::SigIgn) }
             .map_err(|e| io::Error::from_raw_os_error(e as i32))?;
         let result = nix_signal::kill(Pid::from_raw(0), Some(signal));
+        // On Linux a blocked signal stays pending even while ignored, so drop
+        // our own copy before restoring the handler, or a later sigwait sees it.
+        discard_pending(signal);
         // Restore the old handler
         let _ = unsafe { nix_signal::signal(signal, old_handler) };
         result.map_err(|e| io::Error::from_raw_os_error(e as i32))
@@ -91,6 +94,21 @@ impl ChildExt for Child {
                 remaining = Some(timeout.saturating_sub(start.elapsed()));
             }
         }
+    }
+}
+
+#[cfg(not(any(target_os = "fuchsia", target_os = "haiku")))]
+fn discard_pending(signal: Signal) {
+    let mut pending = std::mem::MaybeUninit::<libc::sigset_t>::uninit();
+    // SAFETY: sigpending fills the set it is given.
+    let is_pending = unsafe {
+        libc::sigpending(pending.as_mut_ptr()) == 0
+            && libc::sigismember(pending.as_ptr(), signal as libc::c_int) == 1
+    };
+    if is_pending {
+        let mut set = SigSet::empty();
+        set.add(signal);
+        let _ = set.wait();
     }
 }
 
