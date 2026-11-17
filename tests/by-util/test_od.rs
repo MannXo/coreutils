@@ -1830,3 +1830,13 @@ fn test_skip_near_max_offset_reports_overflow() {
         .no_stdout()
         .stderr_is("od: offset overflow\n");
 }
+
+#[test]
+#[cfg(target_os = "linux")]
+fn test_failed_warning_write_is_reported() {
+    new_ucmd!()
+        .args(&["-w3"])
+        .pipe_in("x\n")
+        .set_stderr(std::fs::File::create("/dev/full").unwrap())
+        .fails_with_code(1);
+}

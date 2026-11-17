@@ -5953,3 +5953,13 @@ fn test_invalid_max_unchanged_stats_is_rejected() {
             .stderr_contains(value);
     }
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn test_failed_retry_warning_write_is_reported() {
+    new_ucmd!()
+        .args(&["-n1", "--retry"])
+        .pipe_in("x\n")
+        .set_stderr(File::create("/dev/full").unwrap())
+        .fails_with_code(1);
+}

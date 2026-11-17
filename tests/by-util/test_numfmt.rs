@@ -2170,3 +2170,12 @@ fn test_repeated_field_is_an_error() {
         .fails_with_code(1)
         .stderr_only("numfmt: multiple field specifications\n");
 }
+
+#[test]
+#[cfg(target_os = "linux")]
+fn test_failed_debug_write_is_reported() {
+    new_ucmd!()
+        .args(&["--debug", "42"])
+        .set_stderr(std::fs::File::create("/dev/full").unwrap())
+        .fails_with_code(1);
+}

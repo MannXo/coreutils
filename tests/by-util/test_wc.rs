@@ -860,3 +860,13 @@ fn test_count_bytes_from_repeated_redirected_stdin() {
         .stdout_only("      6 -\n      0 -\n      6 total\n");
     assert_eq!(input.stream_position().unwrap(), 6);
 }
+
+#[test]
+#[cfg(target_os = "linux")]
+fn test_failed_debug_write_is_reported() {
+    new_ucmd!()
+        .args(&["-l", "--debug"])
+        .pipe_in("x\n")
+        .set_stderr(std::fs::File::create("/dev/full").unwrap())
+        .fails_with_code(1);
+}

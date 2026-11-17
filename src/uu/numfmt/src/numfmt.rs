@@ -89,7 +89,7 @@ fn format_and_write(
             show!(NumfmtError::FormattingError(msg));
         }
         InvalidModes::Warn => {
-            let _ = writeln!(stderr(), "numfmt: {msg}");
+            uucore::error::record_stderr_write(writeln!(stderr(), "numfmt: {msg}"));
         }
         InvalidModes::Ignore => {}
     }
@@ -452,7 +452,7 @@ fn parse_options(args: &ArgMatches) -> std::result::Result<NumfmtOptions, ParseE
 
 fn print_debug_warnings(options: &NumfmtOptions, matches: &ArgMatches) {
     fn print_warning(msg_key: &str) {
-        let _ = writeln!(stderr(), "numfmt: {}", translate!(msg_key));
+        uucore::error::record_stderr_write(writeln!(stderr(), "numfmt: {}", translate!(msg_key)));
     }
 
     // Warn if no conversion option is specified
@@ -545,11 +545,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         }
         Ok(saw_invalid) => {
             if options.debug && saw_invalid {
-                let _ = writeln!(
+                uucore::error::record_stderr_write(writeln!(
                     stderr(),
                     "numfmt: {}",
                     translate!("numfmt-debug-failed-to-convert")
-                );
+                ));
             }
             Ok(())
         }

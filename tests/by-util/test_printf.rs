@@ -1448,3 +1448,12 @@ fn test_ignored_chars_warning_is_quoted() {
         .stdout_is("90\n")
         .stderr_is(format!("printf: warning: '\\tW': {warning}\n"));
 }
+
+#[test]
+#[cfg(target_os = "linux")]
+fn test_failed_warning_write_is_reported() {
+    new_ucmd!()
+        .args(&["x", "y"])
+        .set_stderr(std::fs::File::create("/dev/full").unwrap())
+        .fails_with_code(1);
+}

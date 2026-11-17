@@ -53,7 +53,10 @@ pub fn main(args: TokenStream, stream: TokenStream) -> TokenStream {
             uucore::disable_rust_signal_handlers().expect("Disabling rust signal handlers failed");
             let result = uumain(args);
             match result {
-                Ok(()) => uucore::error::get_exit_code(),
+                Ok(()) => match uucore::error::get_exit_code() {
+                    0 if uucore::error::stderr_write_failed() => 1,
+                    code => code,
+                },
                 Err(e) => {
                     let s = format!("{e}");
                     if s != "" {

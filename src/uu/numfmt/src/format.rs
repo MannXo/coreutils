@@ -972,7 +972,7 @@ fn report_invalid_field(
         InvalidModes::Abort => return Err(WriteError::Invalid(message)),
         InvalidModes::Fail => show!(NumfmtError::FormattingError(message)),
         InvalidModes::Warn => {
-            let _ = writeln!(std::io::stderr(), "numfmt: {message}");
+            uucore::error::record_stderr_write(writeln!(std::io::stderr(), "numfmt: {message}"));
         }
         InvalidModes::Ignore => {}
     }

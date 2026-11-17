@@ -4437,3 +4437,13 @@ fn test_debug_incompatible_with_output() {
         .stderr_only("sort: options '-o --debug' are incompatible\n");
     assert!(!at.file_exists("out"));
 }
+
+#[test]
+#[cfg(target_os = "linux")]
+fn test_failed_debug_write_is_reported() {
+    new_ucmd!()
+        .args(&["--debug"])
+        .pipe_in("x\n")
+        .set_stderr(std::fs::File::create("/dev/full").unwrap())
+        .fails_with_code(2);
+}

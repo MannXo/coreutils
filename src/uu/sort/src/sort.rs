@@ -2462,6 +2462,10 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     // Wait here if `SIGINT` was received,
     // for signal handler to do its work and terminate the program.
     tmp_dir.wait_if_signal();
+    // Like any other sort failure, an unwritable diagnostic exits with 2.
+    if result.is_ok() && uucore::error::stderr_write_failed() {
+        uucore::error::set_exit_code(2);
+    }
     result
 }
 

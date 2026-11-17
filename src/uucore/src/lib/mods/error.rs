@@ -59,9 +59,10 @@ use std::cell::Cell;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
 static EXIT_CODE: AtomicI32 = AtomicI32::new(0);
+static STDERR_WRITE_FAILED: AtomicBool = AtomicBool::new(false);
 
 /// Get the last exit code set with [`set_exit_code`].
 /// The default value is `0`.
@@ -92,13 +93,28 @@ pub fn set_exit_code(code: i32) {
     EXIT_CODE.store(code, Ordering::SeqCst);
 }
 
+/// Remember whether a write to stderr failed.
+///
+/// A utility that could not write a diagnostic does not exit with 0: when
+/// `uumain` returns `Ok(())` with no exit code set, the exit code becomes 1.
+pub fn record_stderr_write<T>(result: std::io::Result<T>) {
+    if result.is_err() {
+        STDERR_WRITE_FAILED.store(true, Ordering::SeqCst);
+    }
+}
+
+/// Whether a write passed to [`record_stderr_write`] has failed.
+pub fn stderr_write_failed() -> bool {
+    STDERR_WRITE_FAILED.load(Ordering::SeqCst)
+}
+
 /// Print `<util>: <prefix><msg>` to stderr, used by [`crate::show!`] and friends.
 ///
 /// stderr is unbuffered, so the line is formatted first and written at once.
 #[doc(hidden)]
 pub fn print_diagnostic(prefix: &str, msg: std::fmt::Arguments<'_>) {
     let line = format!("{}: {prefix}{msg}\n", crate::util_name());
-    let _ = std::io::stderr().write_all(line.as_bytes());
+    record_stderr_write(std::io::stderr().write_all(line.as_bytes()));
 }
 
 /// Result type that should be returned by all utils.
