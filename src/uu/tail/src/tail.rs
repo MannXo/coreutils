@@ -66,15 +66,6 @@ fn uu_tail(settings: &Settings) -> UResult<()> {
 
     observer.start(settings)?;
 
-    // Print debug info about the follow implementation being used
-    if settings.debug && settings.follow.is_some() {
-        if observer.use_polling {
-            show_error!("{}", translate!("tail-debug-using-polling-mode"));
-        } else {
-            show_error!("{}", translate!("tail-debug-using-notification-mode"));
-        }
-    }
-
     // Do an initial tail print of each path's content.
     // Add `path` and `reader` to `files` map if `--follow` is selected.
     for input in &settings.inputs {
@@ -104,11 +95,46 @@ fn uu_tail(settings: &Settings) -> UResult<()> {
         not the -f option shall be ignored.
         */
         if !settings.has_only_stdin() || settings.pid.is_some_and(|pid| pid != 0) {
+            if settings.debug {
+                let _ = stdout().flush();
+                show_error!("{}", follow_mode_message(settings, &observer));
+            }
             follow::follow(observer, settings)?;
         }
     }
 
     Ok(())
+}
+
+/// The `--debug` line naming how `--follow` will wait for new data.
+fn follow_mode_message(settings: &Settings, observer: &Observer) -> String {
+    if observer.use_polling {
+        return translate!("tail-debug-using-polling-mode");
+    }
+    let special_files = settings
+        .inputs
+        .iter()
+        .filter(|input| matches!(input.kind(), InputKind::File(path) if is_special_file(path)))
+        .count();
+    if special_files == 0 {
+        translate!("tail-debug-using-notification-mode")
+    } else if settings.inputs.len() == 1 && observer.follow_descriptor() {
+        translate!("tail-debug-using-blocking-mode")
+    } else {
+        translate!("tail-debug-using-polling-mode")
+    }
+}
+
+/// A file that change notifications cannot track, such as a character device.
+fn is_special_file(path: &Path) -> bool {
+    path.metadata().is_ok_and(|md| {
+        let file_type = md.file_type();
+        #[cfg(unix)]
+        let is_fifo = std::os::unix::fs::FileTypeExt::is_fifo(&file_type);
+        #[cfg(not(unix))]
+        let is_fifo = false;
+        !file_type.is_file() && !file_type.is_dir() && !is_fifo
+    })
 }
 
 fn tail_file(

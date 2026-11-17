@@ -5687,6 +5687,55 @@ fn test_debug_flag_with_inotify() {
 
 #[uutests::wasi_ignore(TailFollowDisabled)]
 #[test]
+#[cfg(unix)]
+fn test_debug_flag_with_special_file() {
+    let ts = TestScenario::new(util_name!());
+    for (follow, mode) in [("-f", "blocking"), ("-F", "polling")] {
+        let mut child = ts
+            .ucmd()
+            .args(&["--debug", follow, "/dev/null"])
+            .run_no_wait();
+
+        child.make_assertion_with_delay(500).is_alive();
+        child
+            .kill()
+            .make_assertion()
+            .with_all_output()
+            .stderr_is(format!("tail: using {mode} mode\n"));
+    }
+}
+
+#[uutests::wasi_ignore(TailFollowDisabled)]
+#[test]
+#[cfg(target_os = "linux")]
+fn test_debug_flag_reports_switch_to_polling() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+    at.mkdir("logs");
+    at.write("logs/app", "hello\n");
+
+    let mut child = ts
+        .ucmd()
+        .args(&["--debug", "-F", "-s.1", "logs/app"])
+        .run_no_wait();
+
+    child.make_assertion_with_delay(500).is_alive();
+    at.remove("logs/app");
+    at.rmdir("logs");
+    child.make_assertion_with_delay(500).is_alive();
+    child
+        .kill()
+        .make_assertion()
+        .with_all_output()
+        .stdout_is("hello\n")
+        .stderr_contains("tail: using notification mode\n")
+        .stderr_contains(
+            "tail: inotify cannot be used, reverting to polling\ntail: using polling mode\n",
+        );
+}
+
+#[uutests::wasi_ignore(TailFollowDisabled)]
+#[test]
 #[cfg(target_os = "linux")]
 fn test_follow_dangling_symlink() {
     let (at, mut ucmd) = at_and_ucmd!();
