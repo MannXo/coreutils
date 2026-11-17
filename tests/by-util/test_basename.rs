@@ -311,3 +311,24 @@ fn test_emoji_handling() {
         .succeeds()
         .stdout_only("file🎯\n");
 }
+
+#[test]
+#[cfg(unix)]
+fn test_quotes_name_on_terminal() {
+    new_ucmd!()
+        .arg("my link")
+        .terminal_simulation(true)
+        .succeeds()
+        .stdout_only("'my link'\r\n");
+    new_ucmd!()
+        .arg("my link")
+        .env("QUOTING_STYLE", "literal")
+        .terminal_simulation(true)
+        .succeeds()
+        .stdout_only("my link\r\n");
+    new_ucmd!()
+        .args(&["-z", "my link"])
+        .terminal_simulation(true)
+        .succeeds()
+        .stdout_only("my link\0");
+}

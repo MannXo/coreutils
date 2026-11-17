@@ -3071,3 +3071,17 @@ fn test_dereference_args_after_dereference_wins() {
         .succeeds()
         .stdout_contains("dir/link");
 }
+
+#[test]
+#[cfg(unix)]
+fn test_quotes_name_on_terminal() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.touch("my file");
+    let result = ucmd
+        .args(&["-c", "my file"])
+        .terminal_simulation(true)
+        .succeeds();
+    let stdout = result.stdout_str();
+    assert!(stdout.contains("\t'my file'\r\n"), "{stdout:?}");
+    assert!(stdout.ends_with("\ttotal\r\n"), "{stdout:?}");
+}

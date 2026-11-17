@@ -16,6 +16,7 @@ use uucore::error::{FromIo, UResult};
 use uucore::fs::{MissingHandling, ResolveMode, canonicalize};
 use uucore::libc::{EINVAL, ENOENT};
 use uucore::line_ending::LineEnding;
+use uucore::quoting_style::{QuotingStyle, print_quoted, tty_quoting_style};
 use uucore::translate;
 use uucore::{format_usage, show_error};
 
@@ -75,6 +76,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     } else {
         Some(LineEnding::from_zero_flag(use_zero))
     };
+    let quoting = if use_zero { None } else { tty_quoting_style() };
 
     // An operand that cannot be resolved does not stop the ones after it; the
     // failure only decides the exit status once every operand has been tried.
@@ -92,7 +94,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
         match path_result {
             Ok(path) => {
-                show(&path, line_ending).map_err_context(String::new)?;
+                show(&path, line_ending, quoting).map_err_context(String::new)?;
             }
             Err(err) => {
                 failed = true;
@@ -186,8 +188,12 @@ pub fn uu_app() -> Command {
         )
 }
 
-fn show(path: &Path, line_ending: Option<LineEnding>) -> std::io::Result<()> {
-    uucore::display::print_verbatim(path)?;
+fn show(
+    path: &Path,
+    line_ending: Option<LineEnding>,
+    quoting: Option<QuotingStyle>,
+) -> std::io::Result<()> {
+    print_quoted(path, quoting)?;
     if let Some(line_ending) = line_ending {
         write!(stdout(), "{line_ending}")?;
     }

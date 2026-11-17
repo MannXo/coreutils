@@ -16,11 +16,12 @@ use std::{
 };
 use uucore::translate;
 use uucore::{
-    display::{Quotable, print_verbatim},
+    display::Quotable,
     error::{FromIo, UResult},
     format_usage,
     fs::{MissingHandling, ResolveMode, canonicalize},
     line_ending::LineEnding,
+    quoting_style::{QuotingStyle, print_quoted, tty_quoting_style},
 };
 use uucore::{error::set_exit_code, fs::make_path_relative_to, show};
 
@@ -84,6 +85,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
     let strip = matches.get_flag(OPT_STRIP);
     let line_ending = LineEnding::from_zero_flag(matches.get_flag(OPT_ZERO));
+    let quoting = if matches.get_flag(OPT_ZERO) {
+        None
+    } else {
+        tty_quoting_style()
+    };
     let quiet = matches.get_flag(OPT_QUIET);
     let logical = matches.get_flag(OPT_LOGICAL);
     let can_mode = if matches.get_flag(OPT_CANONICALIZE_MISSING) {
@@ -109,6 +115,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         let result = resolve_path(
             path,
             line_ending,
+            quoting,
             resolve_mode,
             can_mode,
             relative_to.as_deref(),
@@ -292,6 +299,7 @@ fn canonicalize_relative(
 fn resolve_path(
     p: &Path,
     line_ending: LineEnding,
+    quoting: Option<QuotingStyle>,
     resolve: ResolveMode,
     can_mode: MissingHandling,
     relative_to: Option<&Path>,
@@ -307,7 +315,7 @@ fn resolve_path(
 
     let abs = process_relative(abs, relative_base, relative_to);
 
-    print_verbatim(abs)?;
+    print_quoted(abs, quoting)?;
     stdout().write_all(&[line_ending.into()])?;
     Ok(())
 }

@@ -23,13 +23,14 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::SystemTime;
 use uucore::diagnostics::OptionValue;
-use uucore::display::{Quotable, print_verbatim};
+use uucore::display::Quotable;
 use uucore::error::{FromIo, UError, UResult, USimpleError, set_exit_code};
 use uucore::fs::SYMLINK_FOLLOW_LIMIT;
 use uucore::fsext::{MetadataTimeField, metadata_get_time};
 use uucore::i18n::decimal::locale_grouping_separator;
 use uucore::i18n::{UEncoding, get_numeric_locale};
 use uucore::line_ending::LineEnding;
+use uucore::quoting_style::{QuotingStyle, print_quoted, tty_quoting_style};
 #[cfg(all(unix, not(target_os = "redox")))]
 use uucore::safe_traversal::{DirFd, SymlinkBehavior};
 use uucore::translate;
@@ -100,6 +101,7 @@ struct StatPrinter {
     time: Option<MetadataTimeField>,
     time_format: String,
     line_ending: LineEnding,
+    quoting: Option<QuotingStyle>,
     summarize: bool,
     total_text: String,
 }
@@ -1012,7 +1014,7 @@ impl StatPrinter {
             }
         }
 
-        print_verbatim(&stat.path)?;
+        print_quoted(&stat.path, self.quoting)?;
         write!(stdout(), "{}", self.line_ending)?;
 
         Ok(())
@@ -1229,6 +1231,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         time,
         time_format,
         line_ending: LineEnding::from_zero_flag(matches.get_flag(options::NULL)),
+        quoting: if matches.get_flag(options::NULL) {
+            None
+        } else {
+            tty_quoting_style()
+        },
         total_text: translate!("du-total"),
     };
 

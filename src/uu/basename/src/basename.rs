@@ -13,7 +13,9 @@ use std::path::{PathBuf, is_separator};
 use uucore::display::Quotable;
 use uucore::error::{UResult, UUsageError};
 use uucore::format_usage;
+use uucore::i18n::get_ctype_encoding;
 use uucore::line_ending::LineEnding;
+use uucore::quoting_style::{escape_bytes, tty_quoting_style};
 
 use uucore::translate;
 
@@ -65,9 +67,18 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     // Main Program Processing
     //
 
+    let quoting = if matches.get_flag(options::ZERO) {
+        None
+    } else {
+        tty_quoting_style()
+    };
     for path in name_args {
         let mut out = stdout();
-        out.write_all(&basename(path, &suffix)?)?;
+        let name = basename(path, &suffix)?;
+        match quoting {
+            Some(style) => out.write_all(&escape_bytes(&name, style, get_ctype_encoding()))?,
+            None => out.write_all(&name)?,
+        }
         write!(out, "{line_ending}")?;
     }
 

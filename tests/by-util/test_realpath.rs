@@ -670,3 +670,15 @@ fn test_realpath_canonicalize_vs_existing() {
         }
     }
 }
+
+#[test]
+#[cfg(unix)]
+fn test_quotes_name_on_terminal() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.touch("my file");
+    at.symlink_file("my file", "my link");
+    ucmd.args(&["--relative-to=.", "my link"])
+        .terminal_simulation(true)
+        .succeeds()
+        .stdout_only("'my file'\r\n");
+}

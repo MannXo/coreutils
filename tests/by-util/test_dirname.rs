@@ -344,3 +344,19 @@ fn test_win_non_unicode_path() {
     new_ucmd!().arg(&path).succeeds().stdout_is(".\n");
     new_ucmd!().arg("-z").arg(&path).succeeds().stdout_is(".\0");
 }
+
+#[test]
+#[cfg(unix)]
+fn test_quotes_name_on_terminal() {
+    new_ucmd!()
+        .arg("my link/.")
+        .terminal_simulation(true)
+        .succeeds()
+        .stdout_only("'my link'\r\n");
+    new_ucmd!()
+        .arg("my link/.")
+        .env("QUOTING_STYLE", "literal")
+        .terminal_simulation(true)
+        .succeeds()
+        .stdout_only("my link\r\n");
+}

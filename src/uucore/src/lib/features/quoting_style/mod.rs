@@ -231,6 +231,27 @@ pub fn quoting_style_or_tty_env(cli_style: Option<QuotingStyle>) -> Option<Quoti
     })
 }
 
+/// How `ls` quotes a name on a terminal: the `QUOTING_STYLE` style if set,
+/// `shell-escape` otherwise. `None` when stdout is not a terminal, where
+/// names are printed as they are.
+pub fn tty_quoting_style() -> Option<QuotingStyle> {
+    std::io::stdout()
+        .is_terminal()
+        .then(|| quoting_style_from_env().unwrap_or(QuotingStyle::SHELL_ESCAPE))
+}
+
+/// Write `name` to stdout, quoted in `style` if there is one.
+pub fn print_quoted<S: AsRef<OsStr>>(name: S, style: Option<QuotingStyle>) -> std::io::Result<()> {
+    match style {
+        Some(style) => {
+            let bytes = crate::os_str_as_bytes_lossy(name.as_ref());
+            let quoted = escape_bytes(&bytes, style, i18n::get_ctype_encoding());
+            std::io::Write::write_all(&mut std::io::stdout(), &quoted)
+        }
+        None => crate::display::print_verbatim(name),
+    }
+}
+
 /// Common interface of quoting mechanisms.
 trait Quoter {
     /// Push a valid character.
