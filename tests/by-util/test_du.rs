@@ -3071,3 +3071,13 @@ fn test_dereference_args_after_dereference_wins() {
         .succeeds()
         .stdout_contains("dir/link");
 }
+
+#[test]
+fn test_summarize_with_max_depth_zero_warns() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.touch("f");
+    ucmd.args(&["-s", "--max-depth=0", "f"])
+        .succeeds()
+        .stderr_is("du: warning: summarizing is the same as using --max-depth=0\n")
+        .stdout_contains("\tf\n");
+}
