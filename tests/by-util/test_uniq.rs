@@ -1364,3 +1364,46 @@ fn test_obsolete_skip_fields_not_read_after_double_dash() {
         .fails()
         .stderr_contains("-1");
 }
+
+#[uutests::wasi_ignore(NoPipeSignalSupport)]
+#[test]
+fn test_stdbuf_output_mode_writes_lines_as_read() {
+    // `stdbuf -oL uniq` and `stdbuf -o0 uniq` pass the mode in `_STDBUF_O`.
+    // Each line must come out before more input arrives.
+    //
+    // Run in a separate thread so that the test fails via timeout rather
+    // than hanging if uniq holds the output back.
+    let handle = std::thread::spawn(|| {
+        for (mode, args, steps) in [
+            ("L", &[][..], &[("a\n", "a\n"), ("a\nb\n", "b\n")][..]),
+            ("0", &[][..], &[("a\n", "a\n"), ("a\nb\n", "b\n")][..]),
+            (
+                "L",
+                &["--group"][..],
+                &[("a\n", "a\n"), ("a\n", "a\n"), ("b\n", "\nb\n")][..],
+            ),
+        ] {
+            let mut child = new_ucmd!()
+                .args(args)
+                .env("_STDBUF_O", mode)
+                .set_stdin(std::process::Stdio::piped())
+                .set_stdout(std::process::Stdio::piped())
+                .run_no_wait();
+            for (input, output) in steps {
+                child.write_in(input.as_bytes());
+                assert_eq!(child.stdout_exact_bytes(output.len()), output.as_bytes());
+            }
+            child.wait().unwrap().success();
+        }
+    });
+
+    for _ in 0..500 {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        if handle.is_finished() {
+            break;
+        }
+    }
+
+    assert!(handle.is_finished(), "uniq held back a line");
+    handle.join().unwrap();
+}

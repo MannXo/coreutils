@@ -199,6 +199,38 @@ pub fn read_and_discard<R: io::Read>(reader: &mut R, n: u64, buf_size: usize) ->
     Ok(total)
 }
 
+/// Locked stdout in a `capacity` byte buffer, unless `stdbuf -o` asked for
+/// other buffering.
+///
+/// `stdbuf` passes the mode in `_STDBUF_O` (`0`, `L` or a size in bytes) to a
+/// preloaded library that only changes C stdio, so Rust code has to read it.
+pub fn buffered_stdout(capacity: usize) -> Box<dyn io::Write> {
+    let stdout = io::stdout().lock();
+    let mode = std::env::var("_STDBUF_O").unwrap_or_default();
+    match mode.as_str() {
+        "0" => Box::new(FlushEachWrite(stdout)),
+        "L" => Box::new(io::LineWriter::new(stdout)),
+        size => {
+            let size = size.parse().ok().filter(|&n| n > 0).unwrap_or(capacity);
+            Box::new(io::BufWriter::with_capacity(size, stdout))
+        }
+    }
+}
+
+struct FlushEachWrite<W: io::Write>(W);
+
+impl<W: io::Write> io::Write for FlushEachWrite<W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let written = self.0.write(buf)?;
+        self.0.flush()?;
+        Ok(written)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.flush()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::read_and_discard;

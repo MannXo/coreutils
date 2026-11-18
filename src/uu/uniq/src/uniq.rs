@@ -11,7 +11,7 @@ use clap::{
 };
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Write, stdin, stdout};
+use std::io::{BufRead, BufReader, BufWriter, Write, stdin};
 use std::num::IntErrorKind;
 use uucore::display::Quotable;
 use uucore::error::{FromIo, UError, UResult, USimpleError};
@@ -86,6 +86,14 @@ impl Uniq {
         let mut next_meta = LineMeta::default();
         let mut line_out = Vec::with_capacity(1024);
 
+        // Without counts or filters a line's output does not depend on the lines
+        // after it, so write it as soon as it is read, as `stdbuf -oL` expects.
+        let write_on_read = !(self.show_counts || self.repeats_only || self.uniques_only);
+        if write_on_read {
+            self.write_line(writer, &mut line_out, &current_buf, 1, false)?;
+            first_line_printed = true;
+        }
+
         let read_result = loop {
             match Self::read_line(&mut reader, &mut next_buf, line_terminator) {
                 Ok(true) => {}
@@ -95,20 +103,21 @@ impl Uniq {
 
             if self.keys_are_equal(&current_buf, &current_meta, &next_buf, &next_meta) {
                 if self.all_repeated {
-                    self.write_line(
-                        writer,
-                        &mut line_out,
-                        &current_buf,
-                        group_count,
-                        first_line_printed,
-                    )?;
+                    let (line, count) = if write_on_read {
+                        (&next_buf, group_count + 1)
+                    } else {
+                        (&current_buf, group_count)
+                    };
+                    self.write_line(writer, &mut line_out, line, count, first_line_printed)?;
                     first_line_printed = true;
                     std::mem::swap(&mut current_buf, &mut next_buf);
                     std::mem::swap(&mut current_meta, &mut next_meta);
                 }
                 group_count += 1;
             } else {
-                if (group_count == 1 && !self.repeats_only)
+                if write_on_read {
+                    self.write_line(writer, &mut line_out, &next_buf, 1, first_line_printed)?;
+                } else if (group_count == 1 && !self.repeats_only)
                     || (group_count > 1 && !self.uniques_only)
                 {
                     self.write_line(
@@ -128,11 +137,9 @@ impl Uniq {
         };
 
         // Counts and filtering require the group to end; a read error does not end it.
-        let can_write_pending_line =
-            read_result.is_ok() || !(self.show_counts || self.repeats_only || self.uniques_only);
         let group_matches_filter =
             (group_count == 1 && !self.repeats_only) || (group_count > 1 && !self.uniques_only);
-        if can_write_pending_line && group_matches_filter {
+        if !write_on_read && read_result.is_ok() && group_matches_filter {
             self.write_line(
                 writer,
                 &mut line_out,
@@ -887,9 +894,6 @@ fn open_output_file(out_file_name: Option<&OsStr>) -> UResult<Box<dyn Write>> {
             let out_file = File::create(path).map_err_context(|| path.maybe_quote().to_string())?;
             Box::new(BufWriter::with_capacity(OUTPUT_BUFFER_CAPACITY, out_file))
         }
-        _ => Box::new(BufWriter::with_capacity(
-            OUTPUT_BUFFER_CAPACITY,
-            stdout().lock(),
-        )),
+        _ => uucore::io::buffered_stdout(OUTPUT_BUFFER_CAPACITY),
     })
 }
